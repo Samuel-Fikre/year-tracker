@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:awesome_notifications/awesome_notifications.dart';
+import 'package:workmanager/workmanager.dart';
 
 class AgeProgressService {
   static const String _birthdayKey = 'birthday';
@@ -7,6 +9,59 @@ class AgeProgressService {
 
   static Future<void> initialize() async {
     _prefs = await SharedPreferences.getInstance();
+
+    // Schedule weekly birthday notifications
+    await Workmanager().registerPeriodicTask(
+      'birthdayProgress',
+      'checkBirthdayProgress',
+      frequency: const Duration(days: 7), // Check weekly
+      constraints: Constraints(
+        networkType: NetworkType.not_required,
+        requiresBatteryNotLow: false,
+      ),
+    );
+  }
+
+  static Future<void> checkAndNotify() async {
+    if (!hasBirthday()) return;
+    await showBirthdayNotification();
+  }
+
+  static Future<void> _scheduleWeeklyNotification() async {
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: 2,
+        channelKey: 'progress_channel',
+        title: 'Birthday Progress Update',
+        body: _getBirthdayMessage(),
+        notificationLayout: NotificationLayout.Default,
+      ),
+      schedule: NotificationInterval(
+        interval: 7 * 24 * 60 * 60, // Weekly interval in seconds
+        repeats: true,
+      ),
+    );
+  }
+
+  static String _getBirthdayMessage() {
+    final progress = calculateAgeProgress();
+    final progressPercent = progress['progress'] as double;
+    final daysLeft = progress['daysUntilNextBirthday'] as int;
+    final nextAge = (progress['currentAge'] as int) + 1;
+
+    if (progressPercent >= 99) {
+      return "🎉 Happy Birthday! Tomorrow you'll be $nextAge! 🎂";
+    } else if (progressPercent >= 90) {
+      return "⏳ Almost there! Only $daysLeft days until you turn $nextAge! 🎈";
+    } else if (progressPercent >= 75) {
+      return "🎯 The countdown is on! $daysLeft days until your big day!";
+    } else if (progressPercent >= 50) {
+      return "🌟 Halfway to your next birthday! Making every day count!";
+    } else if (progressPercent >= 25) {
+      return "🌱 Growing wiser every day! $daysLeft days until you level up!";
+    } else {
+      return "🎊 Your journey to $nextAge is just beginning! Making memories along the way!";
+    }
   }
 
   static bool hasBirthday() {
@@ -84,5 +139,17 @@ class AgeProgressService {
 
   static String formatBirthday(DateTime birthday) {
     return DateFormat('MMMM d, yyyy').format(birthday);
+  }
+
+  static Future<void> showBirthdayNotification() async {
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: 3,
+        channelKey: 'progress_channel',
+        title: 'Birthday Progress',
+        body: _getBirthdayMessage(),
+        notificationLayout: NotificationLayout.Default,
+      ),
+    );
   }
 }

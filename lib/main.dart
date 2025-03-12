@@ -10,7 +10,14 @@ import 'services/age_progress_service.dart';
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
-    await YearProgressService.showYearProgressNotification();
+    switch (task) {
+      case 'checkYearProgress':
+        await YearProgressService.checkAndNotify();
+        break;
+      case 'checkBirthdayProgress':
+        await AgeProgressService.showBirthdayNotification();
+        break;
+    }
     return Future.value(true);
   });
 }
@@ -213,43 +220,6 @@ class _MyHomePageState extends State<MyHomePage> {
                           ),
                         ],
                         const SizedBox(height: 48),
-                        // Notification Button
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            await YearProgressService
-                                .showYearProgressNotification();
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Notification sent!',
-                                  style: GoogleFonts.poppins(),
-                                ),
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.primary,
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 24, vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                          ),
-                          icon: const Icon(Icons.notifications_active_rounded),
-                          label: Text(
-                            'Show Notification',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        )
-                            .animate()
-                            .fadeIn(duration: 600.ms)
-                            .slideY(begin: 0.3, end: 0, delay: 400.ms),
                       ],
                     ),
                   ),
