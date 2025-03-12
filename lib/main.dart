@@ -5,6 +5,7 @@ import 'package:workmanager/workmanager.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import 'services/year_progress_service.dart';
+import 'services/age_progress_service.dart';
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -17,9 +18,10 @@ void callbackDispatcher() {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize notifications
+  // Initialize services
   await YearProgressService.initialize();
   await YearProgressService.requestNotificationPermissions();
+  await AgeProgressService.initialize();
 
   // Initialize workmanager for background tasks
   await Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
@@ -60,12 +62,17 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  double _progress = 0.0;
+  double _yearProgress = 0.0;
+  double _ageProgress = 0.0;
+  int _currentAge = 0;
+  int _daysUntilNextBirthday = 0;
+  DateTime? _nextBirthday;
 
   @override
   void initState() {
     super.initState();
     _updateProgress();
+    _checkBirthday();
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -74,10 +81,58 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  void _checkBirthday() async {
+    if (!AgeProgressService.hasBirthday()) {
+      // Show birthday input dialog after a short delay
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _showBirthdayDialog();
+      });
+    }
+    _updateAgeProgress();
+  }
+
   void _updateProgress() {
     setState(() {
-      _progress = YearProgressService.calculateYearProgress();
+      _yearProgress = YearProgressService.calculateYearProgress();
+      _updateAgeProgress();
     });
+  }
+
+  void _updateAgeProgress() {
+    final progress = AgeProgressService.calculateAgeProgress();
+    setState(() {
+      _ageProgress = progress['progress'];
+      _currentAge = progress['currentAge'];
+      _nextBirthday = progress['nextBirthday'];
+      _daysUntilNextBirthday = progress['daysUntilNextBirthday'];
+    });
+  }
+
+  Future<void> _showBirthdayDialog() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().subtract(const Duration(days: 365 * 20)),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Theme.of(context).colorScheme.primary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      await AgeProgressService.saveBirthday(picked);
+      _updateAgeProgress();
+    }
   }
 
   @override
@@ -100,172 +155,170 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
           SafeArea(
-            child: Column(
-              children: [
-                // Custom App Bar
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Ethiopian\nYear Progress',
-                        style: GoogleFonts.poppins(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          height: 1.2,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _updateProgress,
-                        icon: const Icon(Icons.refresh_rounded),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Progress Circle
-                          GlassmorphicContainer(
-                            width: 250,
-                            height: 250,
-                            borderRadius: 125,
-                            blur: 20,
-                            alignment: Alignment.center,
-                            border: 2,
-                            linearGradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                const Color(0xFFffffff).withOpacity(0.1),
-                                const Color(0xFFFFFFFF).withOpacity(0.05),
-                              ],
-                            ),
-                            borderGradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                const Color(0xFFffffff).withOpacity(0.5),
-                                const Color((0xFFFFFFFF)).withOpacity(0.5),
-                              ],
-                            ),
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    '${_progress.toStringAsFixed(1)}%',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 48,
-                                      fontWeight: FontWeight.bold,
-                                      color:
-                                          Theme.of(context).colorScheme.primary,
-                                    ),
-                                  )
-                                      .animate()
-                                      .fadeIn(duration: 600.ms)
-                                      .scale(delay: 200.ms),
-                                  Text(
-                                    'Completed',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                              .animate()
-                              .fadeIn(duration: 800.ms)
-                              .scale(delay: 300.ms),
-                          const SizedBox(height: 48),
-                          // Progress Bar
-                          Container(
-                            width: double.infinity,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[200],
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Stack(
-                              children: [
-                                FractionallySizedBox(
-                                  widthFactor: _progress / 100,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Theme.of(context).colorScheme.primary,
-                                          Theme.of(context)
-                                              .colorScheme
-                                              .secondary,
-                                        ],
-                                      ),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                )
-                                    .animate()
-                                    .fadeIn(duration: 800.ms)
-                                    .slideX(begin: -0.5, end: 0, delay: 300.ms),
-                              ],
-                            ),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Custom App Bar
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Progress\nTrackers',
+                          style: GoogleFonts.poppins(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            height: 1.2,
                           ),
-                          const SizedBox(height: 48),
-                          // Notification Button
-                          ElevatedButton.icon(
-                            onPressed: () async {
-                              await YearProgressService
-                                  .showYearProgressNotification();
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Notification sent!',
-                                    style: GoogleFonts.poppins(),
-                                  ),
-                                  backgroundColor:
-                                      Theme.of(context).colorScheme.primary,
-                                  duration: const Duration(seconds: 2),
-                                ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 24, vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                              ),
+                        ),
+                        Row(
+                          children: [
+                            IconButton(
+                              onPressed: _showBirthdayDialog,
+                              icon: const Icon(Icons.cake_rounded),
+                              tooltip: 'Change Birthday',
                             ),
-                            icon:
-                                const Icon(Icons.notifications_active_rounded),
-                            label: Text(
-                              'Show Notification',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
+                            IconButton(
+                              onPressed: _updateProgress,
+                              icon: const Icon(Icons.refresh_rounded),
                             ),
-                          )
-                              .animate()
-                              .fadeIn(duration: 600.ms)
-                              .slideY(begin: 0.3, end: 0, delay: 400.ms),
-                        ],
-                      ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  // Progress Circles
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Ethiopian Year Progress
+                        _buildProgressCircle(
+                          'Ethiopian Year',
+                          _yearProgress,
+                          Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(height: 24),
+                        // Age Progress
+                        if (AgeProgressService.hasBirthday()) ...[
+                          _buildProgressCircle(
+                            'Age $_currentAge',
+                            _ageProgress,
+                            Theme.of(context).colorScheme.secondary,
+                            subtitle: _nextBirthday != null
+                                ? '${_daysUntilNextBirthday} days until ${_currentAge + 1}'
+                                : null,
+                          ),
+                        ],
+                        const SizedBox(height: 48),
+                        // Notification Button
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            await YearProgressService
+                                .showYearProgressNotification();
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Notification sent!',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.primary,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                          ),
+                          icon: const Icon(Icons.notifications_active_rounded),
+                          label: Text(
+                            'Show Notification',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(duration: 600.ms)
+                            .slideY(begin: 0.3, end: 0, delay: 400.ms),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildProgressCircle(String title, double progress, Color color,
+      {String? subtitle}) {
+    return GlassmorphicContainer(
+      width: 250,
+      height: 250,
+      borderRadius: 125,
+      blur: 20,
+      alignment: Alignment.center,
+      border: 2,
+      linearGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFFffffff).withOpacity(0.1),
+          const Color(0xFFFFFFFF).withOpacity(0.05),
+        ],
+      ),
+      borderGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          color.withOpacity(0.5),
+          color.withOpacity(0.5),
+        ],
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[800],
+              ),
+            ),
+            Text(
+              '${progress.toStringAsFixed(1)}%',
+              style: GoogleFonts.poppins(
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ).animate().fadeIn(duration: 600.ms).scale(delay: 200.ms),
+            if (subtitle != null)
+              Text(
+                subtitle,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 800.ms).scale(delay: 300.ms);
   }
 }
