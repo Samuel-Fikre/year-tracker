@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:workmanager/workmanager.dart';
+import 'package:flutter/foundation.dart';
 
 class AgeProgressService {
   static const String _birthdayKey = 'birthday';
@@ -65,17 +66,36 @@ class AgeProgressService {
   }
 
   static bool hasBirthday() {
-    return _prefs?.getString(_birthdayKey) != null;
+    if (_prefs == null) {
+      debugPrint('Warning: SharedPreferences not initialized');
+      return false;
+    }
+    return _prefs!.getString(_birthdayKey) != null;
   }
 
   static Future<void> saveBirthday(DateTime birthday) async {
-    await _prefs?.setString(_birthdayKey, birthday.toIso8601String());
+    if (_prefs == null) {
+      _prefs = await SharedPreferences.getInstance();
+    }
+    // Format with padded month and day to ensure proper ISO8601 format
+    final formattedDate =
+        '${birthday.year}-${birthday.month.toString().padLeft(2, '0')}-${birthday.day.toString().padLeft(2, '0')}';
+    await _prefs?.setString(_birthdayKey, formattedDate);
   }
 
   static DateTime? getBirthday() {
     final birthdayStr = _prefs?.getString(_birthdayKey);
     if (birthdayStr == null) return null;
-    return DateTime.parse(birthdayStr);
+
+    // Split the date string and parse each component
+    final parts = birthdayStr.split('-');
+    if (parts.length != 3) return null;
+
+    return DateTime(
+      int.parse(parts[0]), // year
+      int.parse(parts[1]), // month
+      int.parse(parts[2]), // day
+    );
   }
 
   static Map<String, dynamic> calculateAgeProgress() {

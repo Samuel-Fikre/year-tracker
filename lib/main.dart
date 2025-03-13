@@ -23,22 +23,30 @@ void callbackDispatcher() {
 }
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize services
-  await YearProgressService.initialize();
-  await YearProgressService.requestNotificationPermissions();
-  await AgeProgressService.initialize();
+    // Initialize services
+    await YearProgressService.initialize();
+    await AgeProgressService.initialize();
 
-  // Initialize workmanager for background tasks
-  await Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
-  await Workmanager().registerPeriodicTask(
-    'ethiopianYearProgress',
-    'updateProgress',
-    frequency: const Duration(hours: 1),
-  );
+    // Request permissions after services are initialized
+    await YearProgressService.requestNotificationPermissions();
 
-  runApp(const MyApp());
+    // Initialize workmanager for background tasks
+    await Workmanager().initialize(callbackDispatcher);
+    await Workmanager().registerPeriodicTask(
+      'ethiopianYearProgress',
+      'updateProgress',
+      frequency: const Duration(hours: 1),
+    );
+
+    runApp(const MyApp());
+  } catch (e, stackTrace) {
+    debugPrint('Error during initialization: $e\n$stackTrace');
+    // Run the app even if initialization fails
+    runApp(const MyApp());
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -48,6 +56,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Ethiopian Year Progress',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF6C63FF),
@@ -78,14 +87,28 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    _updateProgress();
-    _checkBirthday();
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-      ),
-    );
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      // Wait for services to initialize
+      await YearProgressService.initialize();
+      await AgeProgressService.initialize();
+
+      // Now update the UI
+      _updateProgress();
+      _checkBirthday();
+
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+        ),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('Error in _initializeApp: $e\n$stackTrace');
+    }
   }
 
   void _checkBirthday() async {
@@ -99,20 +122,28 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _updateProgress() {
-    setState(() {
-      _yearProgress = YearProgressService.calculateYearProgress();
-      _updateAgeProgress();
-    });
+    try {
+      setState(() {
+        _yearProgress = YearProgressService.calculateYearProgress();
+        _updateAgeProgress();
+      });
+    } catch (e, stackTrace) {
+      debugPrint('Error in _updateProgress: $e\n$stackTrace');
+    }
   }
 
   void _updateAgeProgress() {
-    final progress = AgeProgressService.calculateAgeProgress();
-    setState(() {
-      _ageProgress = progress['progress'];
-      _currentAge = progress['currentAge'];
-      _nextBirthday = progress['nextBirthday'];
-      _daysUntilNextBirthday = progress['daysUntilNextBirthday'];
-    });
+    try {
+      final progress = AgeProgressService.calculateAgeProgress();
+      setState(() {
+        _ageProgress = progress['progress'];
+        _currentAge = progress['currentAge'];
+        _nextBirthday = progress['nextBirthday'];
+        _daysUntilNextBirthday = progress['daysUntilNextBirthday'];
+      });
+    } catch (e, stackTrace) {
+      debugPrint('Error in _updateAgeProgress: $e\n$stackTrace');
+    }
   }
 
   Future<void> _showBirthdayDialog() async {
@@ -138,7 +169,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
     if (picked != null) {
       await AgeProgressService.saveBirthday(picked);
-      _updateAgeProgress();
+      // Update both progress circles
+      setState(() {
+        _updateProgress(); // This will also call _updateAgeProgress
+      });
     }
   }
 
@@ -172,7 +206,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Progress\nTrackers',
+                          'Progress\nTracker',
                           style: GoogleFonts.poppins(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
