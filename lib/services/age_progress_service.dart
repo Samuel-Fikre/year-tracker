@@ -9,18 +9,24 @@ class AgeProgressService {
   static SharedPreferences? _prefs;
 
   static Future<void> initialize() async {
-    _prefs = await SharedPreferences.getInstance();
+    try {
+      _prefs = await SharedPreferences.getInstance();
+      debugPrint('SharedPreferences initialized: ${_prefs != null}');
+      debugPrint('Birthday exists: ${hasBirthday()}');
 
-    // Schedule weekly birthday notifications
-    await Workmanager().registerPeriodicTask(
-      'birthdayProgress',
-      'checkBirthdayProgress',
-      frequency: const Duration(days: 7), // Check weekly
-      constraints: Constraints(
-        networkType: NetworkType.not_required,
-        requiresBatteryNotLow: false,
-      ),
-    );
+      // Schedule weekly birthday notifications
+      await Workmanager().registerPeriodicTask(
+        'birthdayProgress',
+        'checkBirthdayProgress',
+        frequency: const Duration(days: 7), // Check weekly
+        constraints: Constraints(
+          networkType: NetworkType.not_required,
+          requiresBatteryNotLow: false,
+        ),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('Error initializing AgeProgressService: $e\n$stackTrace');
+    }
   }
 
   static Future<void> checkAndNotify() async {
@@ -67,20 +73,27 @@ class AgeProgressService {
 
   static bool hasBirthday() {
     if (_prefs == null) {
-      debugPrint('Warning: SharedPreferences not initialized');
+      debugPrint('Warning: SharedPreferences not initialized in hasBirthday()');
       return false;
     }
-    return _prefs!.getString(_birthdayKey) != null;
+    final hasData = _prefs!.getString(_birthdayKey) != null;
+    debugPrint('hasBirthday check: $hasData');
+    return hasData;
   }
 
   static Future<void> saveBirthday(DateTime birthday) async {
-    if (_prefs == null) {
-      _prefs = await SharedPreferences.getInstance();
+    try {
+      if (_prefs == null) {
+        _prefs = await SharedPreferences.getInstance();
+      }
+      // Format with padded month and day to ensure proper ISO8601 format
+      final formattedDate =
+          '${birthday.year}-${birthday.month.toString().padLeft(2, '0')}-${birthday.day.toString().padLeft(2, '0')}';
+      await _prefs!.setString(_birthdayKey, formattedDate);
+      debugPrint('Birthday saved: $formattedDate');
+    } catch (e, stackTrace) {
+      debugPrint('Error saving birthday: $e\n$stackTrace');
     }
-    // Format with padded month and day to ensure proper ISO8601 format
-    final formattedDate =
-        '${birthday.year}-${birthday.month.toString().padLeft(2, '0')}-${birthday.day.toString().padLeft(2, '0')}';
-    await _prefs?.setString(_birthdayKey, formattedDate);
   }
 
   static DateTime? getBirthday() {

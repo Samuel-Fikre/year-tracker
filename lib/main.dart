@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import 'services/year_progress_service.dart';
 import 'services/age_progress_service.dart';
+import 'dart:async';
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -27,8 +28,12 @@ void main() async {
     WidgetsFlutterBinding.ensureInitialized();
 
     // Initialize services
-    await YearProgressService.initialize();
-    await AgeProgressService.initialize();
+    await Future.wait([
+      YearProgressService.initialize(),
+      AgeProgressService.initialize(),
+    ]);
+
+    debugPrint('Services initialized successfully');
 
     // Request permissions after services are initialized
     await YearProgressService.requestNotificationPermissions();
@@ -83,22 +88,58 @@ class _MyHomePageState extends State<MyHomePage> {
   int _currentAge = 0;
   int _daysUntilNextBirthday = 0;
   DateTime? _nextBirthday;
+  Timer? _updateTimer;
 
   @override
   void initState() {
     super.initState();
     _initializeApp();
+    // Set up timer to update progress every minute
+    _updateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      _updateAllProgress();
+    });
+  }
+
+  @override
+  void dispose() {
+    _updateTimer?.cancel();
+    super.dispose();
+  }
+
+  void _updateAllProgress() {
+    if (!mounted) return;
+
+    try {
+      final yearProgress = YearProgressService.calculateYearProgress();
+      final ageProgress = AgeProgressService.calculateAgeProgress();
+
+      setState(() {
+        _yearProgress = yearProgress;
+        _ageProgress = ageProgress['progress'];
+        _currentAge = ageProgress['currentAge'];
+        _nextBirthday = ageProgress['nextBirthday'];
+        _daysUntilNextBirthday = ageProgress['daysUntilNextBirthday'];
+      });
+    } catch (e, stackTrace) {
+      debugPrint('Error updating progress: $e\n$stackTrace');
+    }
   }
 
   Future<void> _initializeApp() async {
     try {
-      // Wait for services to initialize
-      await YearProgressService.initialize();
-      await AgeProgressService.initialize();
+      // Only initialize services in main.dart, not here
+      debugPrint('Initializing app UI');
 
-      // Now update the UI
-      _updateProgress();
-      _checkBirthday();
+      // Update progress immediately
+      _updateAllProgress();
+
+      // Check if we need to show birthday dialog
+      if (!AgeProgressService.hasBirthday()) {
+        // Show birthday input dialog after a short delay
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) _showBirthdayDialog();
+        });
+      }
 
       SystemChrome.setSystemUIOverlayStyle(
         const SystemUiOverlayStyle(
@@ -111,39 +152,8 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  void _checkBirthday() async {
-    if (!AgeProgressService.hasBirthday()) {
-      // Show birthday input dialog after a short delay
-      Future.delayed(const Duration(milliseconds: 500), () {
-        _showBirthdayDialog();
-      });
-    }
-    _updateAgeProgress();
-  }
-
   void _updateProgress() {
-    try {
-      setState(() {
-        _yearProgress = YearProgressService.calculateYearProgress();
-        _updateAgeProgress();
-      });
-    } catch (e, stackTrace) {
-      debugPrint('Error in _updateProgress: $e\n$stackTrace');
-    }
-  }
-
-  void _updateAgeProgress() {
-    try {
-      final progress = AgeProgressService.calculateAgeProgress();
-      setState(() {
-        _ageProgress = progress['progress'];
-        _currentAge = progress['currentAge'];
-        _nextBirthday = progress['nextBirthday'];
-        _daysUntilNextBirthday = progress['daysUntilNextBirthday'];
-      });
-    } catch (e, stackTrace) {
-      debugPrint('Error in _updateAgeProgress: $e\n$stackTrace');
-    }
+    _updateAllProgress();
   }
 
   Future<void> _showBirthdayDialog() async {
@@ -167,12 +177,9 @@ class _MyHomePageState extends State<MyHomePage> {
       },
     );
 
-    if (picked != null) {
+    if (picked != null && mounted) {
       await AgeProgressService.saveBirthday(picked);
-      // Update both progress circles
-      setState(() {
-        _updateProgress(); // This will also call _updateAgeProgress
-      });
+      _updateAllProgress();
     }
   }
 
