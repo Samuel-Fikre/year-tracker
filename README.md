@@ -1,12 +1,12 @@
 # Ethiopian Year & Age Progress Tracker
 
-A beautiful Flutter application that tracks both Ethiopian calendar year progress and personal age progress, providing elegant visualizations and timely notifications.
+A Flutter application that tracks both Ethiopian calendar year progress and personal age progress, providing elegant visualizations and timely notifications.
 
 ## Features
 
 - 🗓️ **Ethiopian Year Progress**
   - Real-time progress tracking of the current Ethiopian year
-  - Beautiful circular progress indicator
+  - circular progress indicator
   - Special notifications for milestones (New Year, quarters, Pagume)
 
 - 🎂 **Age Progress**
@@ -14,14 +14,8 @@ A beautiful Flutter application that tracks both Ethiopian calendar year progres
   - Birthday notifications and countdown
   - Personalized messages based on progress
 
-- ✨ **Beautiful UI**
-  - Glassmorphic design
-  - Smooth animations
-  - Responsive layout
 
-## Screenshots
 
-[Add your screenshots here]
 
 ## Installation
 
@@ -77,47 +71,15 @@ git push origin feature/AmazingFeature
 ```
 5. Open a Pull Request
 
-### Code Style
 
-- Follow the [Dart Style Guide](https://dart.dev/guides/language/effective-dart/style)
-- Use meaningful variable and function names
-- Add comments for complex logic
-- Write unit tests for new features
 
-## Project Structure
 
-```
-lib/
-├── main.dart              # App entry point
-├── services/
-│   ├── age_progress_service.dart    # Age tracking logic
-│   └── year_progress_service.dart   # Ethiopian year tracking
-├── utils/
-│   └── ethiopian_date_utils.dart    # Date conversion utilities
-└── widgets/              # Custom widgets (if any)
-```
 
-## Dependencies
 
-- `ethiopian_datetime`: Ethiopian calendar utilities
-- `awesome_notifications`: Local notifications
-- `workmanager`: Background tasks
-- `shared_preferences`: Local storage
-- `google_fonts`: Typography
-- `flutter_animate`: Animations
-- `glassmorphism`: UI effects
+
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
-
-- Ethiopian Calendar algorithms
-- Flutter community
-- Contributors
-
-## Contact
-
-Your Name - [@yourtwitter](https://twitter.com/yourtwitter)
-Project Link: [https://github.com/yourusername/year-tracker](https://github.com/yourusername/year-tracker) 
+ 
