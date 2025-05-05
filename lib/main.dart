@@ -133,8 +133,100 @@ class MyApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      themeMode: ThemeMode.system, // This will follow system theme
-      home: const MyHomePage(),
+      home: const ThemeProvider(
+        child: MyHomePage(),
+      ),
+    );
+  }
+}
+
+class _InheritedThemeProvider extends InheritedWidget {
+  final _ThemeProviderState data;
+
+  const _InheritedThemeProvider({
+    required this.data,
+    required super.child,
+  });
+
+  @override
+  bool updateShouldNotify(_InheritedThemeProvider oldWidget) {
+    return true;
+  }
+}
+
+class ThemeProvider extends StatefulWidget {
+  final Widget child;
+
+  const ThemeProvider({
+    super.key,
+    required this.child,
+  });
+
+  static _ThemeProviderState of(BuildContext context) {
+    final result =
+        context.dependOnInheritedWidgetOfExactType<_InheritedThemeProvider>();
+    assert(result != null, 'No ThemeProvider found in context');
+    return result!.data;
+  }
+
+  @override
+  State<ThemeProvider> createState() => _ThemeProviderState();
+}
+
+class _ThemeProviderState extends State<ThemeProvider> {
+  ThemeMode _themeMode = ThemeMode.light;
+
+  void toggleTheme() {
+    setState(() {
+      _themeMode =
+          _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _InheritedThemeProvider(
+      data: this,
+      child: Builder(
+        builder: (context) {
+          return Theme(
+            data: _themeMode == ThemeMode.dark
+                ? Theme.of(context).copyWith(
+                    colorScheme: ColorScheme.dark(
+                      primary: Colors.white,
+                      onPrimary: Colors.black,
+                      secondary: Colors.grey[300]!,
+                      onSecondary: Colors.black,
+                      surface: Colors.black,
+                      onSurface: Colors.white,
+                      background: Colors.black,
+                      onBackground: Colors.white,
+                    ),
+                    brightness: Brightness.dark,
+                    scaffoldBackgroundColor: Colors.black,
+                    textTheme: GoogleFonts.interTextTheme().copyWith(
+                      titleLarge: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                      bodyLarge: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                      bodyMedium: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  )
+                : Theme.of(context),
+            child: widget.child,
+          );
+        },
+      ),
     );
   }
 }
@@ -302,9 +394,8 @@ class _MyHomePageState extends State<MyHomePage> {
                             color: isDark ? Colors.white : Colors.black,
                             size: 20,
                           ),
-                          onPressed: () {
-                            // Toggle theme
-                          },
+                          onPressed: () =>
+                              ThemeProvider.of(context).toggleTheme(),
                           padding: const EdgeInsets.all(8),
                           constraints: const BoxConstraints(),
                         ),
