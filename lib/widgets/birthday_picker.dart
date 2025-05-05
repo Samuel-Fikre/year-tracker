@@ -28,101 +28,174 @@ class _BirthdayPickerState extends State<BirthdayPicker> {
     'December'
   ];
 
-  int selectedMonth = DateTime.now().month - 1;
-  int selectedYear = DateTime.now().year;
-  final ScrollController _monthController = ScrollController();
-  final ScrollController _yearController = ScrollController();
+  late int selectedDay;
+  late int selectedMonth;
+  late int selectedYear;
+  late List<int> days;
+  late FixedExtentScrollController dayController;
+  late FixedExtentScrollController monthController;
+  late FixedExtentScrollController yearController;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    selectedDay = now.day;
+    selectedMonth = now.month;
+    selectedYear = now.year;
+    days = _getDaysInMonth(selectedMonth, selectedYear);
+    dayController = FixedExtentScrollController(initialItem: selectedDay - 1);
+    monthController =
+        FixedExtentScrollController(initialItem: selectedMonth - 1);
+    yearController = FixedExtentScrollController(initialItem: now.year - 1950);
+  }
+
+  @override
+  void dispose() {
+    dayController.dispose();
+    monthController.dispose();
+    yearController.dispose();
+    super.dispose();
+  }
+
+  List<int> _getDaysInMonth(int month, int year) {
+    final daysInMonth = DateTime(year, month + 1, 0).day;
+    return List.generate(daysInMonth, (index) => index + 1);
+  }
+
+  void _updateDays() {
+    setState(() {
+      days = _getDaysInMonth(selectedMonth, selectedYear);
+      if (selectedDay > days.length) {
+        selectedDay = days.length;
+        dayController.jumpToItem(selectedDay - 1);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
-    final inactiveColor = isDark ? Colors.white38 : Colors.black38;
+    final backgroundColor = isDark ? Colors.black : Colors.white;
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.black : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Month Picker
-          SizedBox(
-            height: 200,
-            child: ListWheelScrollView.useDelegate(
-              controller: _monthController,
-              itemExtent: 40,
-              perspective: 0.005,
-              diameterRatio: 1.5,
-              physics: const FixedExtentScrollPhysics(),
-              onSelectedItemChanged: (index) {
-                setState(() => selectedMonth = index);
-              },
-              childDelegate: ListWheelChildBuilderDelegate(
-                childCount: months.length,
-                builder: (context, index) {
-                  return Center(
-                    child: Text(
-                      months[index],
-                      style: TextStyle(
-                        color:
-                            index == selectedMonth ? textColor : inactiveColor,
-                        fontSize: index == selectedMonth ? 20 : 16,
-                        fontWeight: index == selectedMonth
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
+          Container(
+            height: 280,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
+              children: [
+                // Days Column
+                Expanded(
+                  child: ListWheelScrollView.useDelegate(
+                    controller: dayController,
+                    itemExtent: 40,
+                    perspective: 0.005,
+                    diameterRatio: 1.5,
+                    physics: const FixedExtentScrollPhysics(),
+                    onSelectedItemChanged: (index) {
+                      setState(() => selectedDay = days[index]);
+                    },
+                    childDelegate: ListWheelChildBuilderDelegate(
+                      childCount: days.length,
+                      builder: (context, index) {
+                        return Center(
+                          child: Text(
+                            days[index].toString().padLeft(2, '0'),
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // Year Picker
-          SizedBox(
-            height: 200,
-            child: ListWheelScrollView.useDelegate(
-              controller: _yearController,
-              itemExtent: 40,
-              perspective: 0.005,
-              diameterRatio: 1.5,
-              physics: const FixedExtentScrollPhysics(),
-              onSelectedItemChanged: (index) {
-                setState(
-                    () => selectedYear = DateTime.now().year - 100 + index);
-              },
-              childDelegate: ListWheelChildBuilderDelegate(
-                childCount: 101, // 100 years back from current year
-                builder: (context, index) {
-                  final year = DateTime.now().year - 100 + index;
-                  return Center(
-                    child: Text(
-                      year.toString(),
-                      style: TextStyle(
-                        color: year == selectedYear ? textColor : inactiveColor,
-                        fontSize: year == selectedYear ? 20 : 16,
-                        fontWeight: year == selectedYear
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
+                  ),
+                ),
+                // Months Column
+                Expanded(
+                  flex: 2,
+                  child: ListWheelScrollView.useDelegate(
+                    controller: monthController,
+                    itemExtent: 40,
+                    perspective: 0.005,
+                    diameterRatio: 1.5,
+                    physics: const FixedExtentScrollPhysics(),
+                    onSelectedItemChanged: (index) {
+                      setState(() {
+                        selectedMonth = index + 1;
+                        _updateDays();
+                      });
+                    },
+                    childDelegate: ListWheelChildBuilderDelegate(
+                      childCount: months.length,
+                      builder: (context, index) {
+                        return Center(
+                          child: Text(
+                            months[index],
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+                // Years Column
+                Expanded(
+                  child: ListWheelScrollView.useDelegate(
+                    controller: yearController,
+                    itemExtent: 40,
+                    perspective: 0.005,
+                    diameterRatio: 1.5,
+                    physics: const FixedExtentScrollPhysics(),
+                    onSelectedItemChanged: (index) {
+                      setState(() {
+                        selectedYear = 1950 + index;
+                        _updateDays();
+                      });
+                    },
+                    childDelegate: ListWheelChildBuilderDelegate(
+                      childCount: DateTime.now().year - 1950 + 1,
+                      builder: (context, index) {
+                        return Center(
+                          child: Text(
+                            (1950 + index).toString(),
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
           // Set Birthday Button
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: SizedBox(
               width: double.infinity,
               child: FilledButton(
                 onPressed: () {
                   final selectedDate =
-                      DateTime(selectedYear, selectedMonth + 1);
+                      DateTime(selectedYear, selectedMonth, selectedDay);
                   widget.onDateSelected(selectedDate);
                   Navigator.of(context).pop();
                 },
@@ -130,11 +203,17 @@ class _BirthdayPickerState extends State<BirthdayPicker> {
                   backgroundColor: isDark ? Colors.white : Colors.black,
                   foregroundColor: isDark ? Colors.black : Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
+                    borderRadius: BorderRadius.circular(32),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: const Text('Set your Birthday'),
+                child: const Text(
+                  'Set your Birthday',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
             ),
           ),

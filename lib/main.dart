@@ -287,7 +287,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       children: [
                         IconButton(
                           icon: Icon(
-                            Icons.person_outline,
+                            Icons.cake_outlined,
                             color: isDark ? Colors.white : Colors.black,
                             size: 20,
                           ),
