@@ -34,22 +34,6 @@ class AgeProgressService {
     await showBirthdayNotification();
   }
 
-  static Future<void> _scheduleWeeklyNotification() async {
-    await AwesomeNotifications().createNotification(
-      content: NotificationContent(
-        id: 2,
-        channelKey: 'progress_channel',
-        title: 'Birthday Progress Update',
-        body: _getBirthdayMessage(),
-        notificationLayout: NotificationLayout.Default,
-      ),
-      schedule: NotificationInterval(
-        interval: 7 * 24 * 60 * 60, // Weekly interval in seconds
-        repeats: true,
-      ),
-    );
-  }
-
   static String _getBirthdayMessage() {
     final progress = calculateAgeProgress();
     final progressPercent = progress['progress'] as double;
@@ -96,13 +80,13 @@ class AgeProgressService {
     }
   }
 
-  static DateTime? getBirthday() {
+  static DateTime getBirthDate() {
     final birthdayStr = _prefs?.getString(_birthdayKey);
-    if (birthdayStr == null) return null;
+    if (birthdayStr == null) return DateTime.now();
 
     // Split the date string and parse each component
     final parts = birthdayStr.split('-');
-    if (parts.length != 3) return null;
+    if (parts.length != 3) return DateTime.now();
 
     return DateTime(
       int.parse(parts[0]), // year
@@ -112,15 +96,7 @@ class AgeProgressService {
   }
 
   static Map<String, dynamic> calculateAgeProgress() {
-    final birthday = getBirthday();
-    if (birthday == null) {
-      return {
-        'progress': 0.0,
-        'currentAge': 0,
-        'nextBirthday': null,
-        'daysUntilNextBirthday': 0,
-      };
-    }
+    final birthday = getBirthDate();
 
     final now = DateTime.now();
 

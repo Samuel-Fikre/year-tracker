@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:workmanager/workmanager.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import 'package:glassmorphism/glassmorphism.dart';
 import 'services/year_progress_service.dart';
 import 'services/age_progress_service.dart';
 import 'dart:async';
+import 'widgets/dot_matrix.dart';
+import 'widgets/birthday_picker.dart';
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -27,29 +27,36 @@ void main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
 
-    // Initialize services
-    await Future.wait([
-      YearProgressService.initialize(),
-      AgeProgressService.initialize(),
-    ]);
+    // Initialize WorkManager first
+    try {
+      await Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
+    } catch (e) {
+      debugPrint('Workmanager initialization error: $e');
+    }
 
-    debugPrint('Services initialized successfully');
+    // Then initialize services that depend on WorkManager
+    try {
+      await YearProgressService.initialize();
+    } catch (e) {
+      debugPrint('YearProgress initialization error: $e');
+    }
 
-    // Request permissions after services are initialized
-    await YearProgressService.requestNotificationPermissions();
+    try {
+      await AgeProgressService.initialize();
+    } catch (e) {
+      debugPrint('AgeProgress initialization error: $e');
+    }
 
-    // Initialize workmanager for background tasks
-    await Workmanager().initialize(callbackDispatcher);
-    await Workmanager().registerPeriodicTask(
-      'ethiopianYearProgress',
-      'updateProgress',
-      frequency: const Duration(hours: 1),
-    );
+    try {
+      await YearProgressService.requestNotificationPermissions();
+    } catch (e) {
+      debugPrint('Notification permission error: $e');
+    }
 
     runApp(const MyApp());
-  } catch (e, stackTrace) {
-    debugPrint('Error during initialization: $e\n$stackTrace');
-    // Run the app even if initialization fails
+  } catch (e, stack) {
+    debugPrint('Critical error during app startup: $e\n$stack');
+    // Ensure the app runs even if there are initialization errors
     runApp(const MyApp());
   }
 }
@@ -60,16 +67,73 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Ethiopian Year Progress',
+      title: 'Track',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF6C63FF),
-          brightness: Brightness.light,
+        colorScheme: ColorScheme.light(
+          primary: Colors.black,
+          onPrimary: Colors.white,
+          secondary: Colors.grey[800]!,
+          onSecondary: Colors.white,
+          surface: Colors.white,
+          onSurface: Colors.black,
+          background: Colors.white,
+          onBackground: Colors.black,
         ),
-        textTheme: GoogleFonts.poppinsTextTheme(),
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: Colors.white,
+        textTheme: GoogleFonts.interTextTheme().copyWith(
+          titleLarge: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
+          bodyLarge: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
+          ),
+          bodyMedium: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: Colors.black54,
+          ),
+        ),
         useMaterial3: true,
       ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.dark(
+          primary: Colors.white,
+          onPrimary: Colors.black,
+          secondary: Colors.grey[300]!,
+          onSecondary: Colors.black,
+          surface: Colors.black,
+          onSurface: Colors.white,
+          background: Colors.black,
+          onBackground: Colors.white,
+        ),
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: Colors.black,
+        textTheme: GoogleFonts.interTextTheme().copyWith(
+          titleLarge: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+          bodyLarge: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+          bodyMedium: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: Colors.white70,
+          ),
+        ),
+        useMaterial3: true,
+      ),
+      themeMode: ThemeMode.system, // This will follow system theme
       home: const MyHomePage(),
     );
   }
@@ -89,6 +153,7 @@ class _MyHomePageState extends State<MyHomePage> {
   int _daysUntilNextBirthday = 0;
   DateTime? _nextBirthday;
   Timer? _updateTimer;
+  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -119,9 +184,12 @@ class _MyHomePageState extends State<MyHomePage> {
         _currentAge = ageProgress['currentAge'];
         _nextBirthday = ageProgress['nextBirthday'];
         _daysUntilNextBirthday = ageProgress['daysUntilNextBirthday'];
+        _isInitialized = true;
       });
     } catch (e, stackTrace) {
       debugPrint('Error updating progress: $e\n$stackTrace');
+      setState(
+          () => _isInitialized = true); // Still mark as initialized to show UI
     }
   }
 
@@ -157,179 +225,129 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _showBirthdayDialog() async {
-    final DateTime? picked = await showDatePicker(
+    await showDialog(
       context: context,
-      initialDate: DateTime.now().subtract(const Duration(days: 365 * 20)),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: Theme.of(context).colorScheme.primary,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: BirthdayPicker(
+          onDateSelected: (date) async {
+            await AgeProgressService.saveBirthday(date);
+            _updateAllProgress();
+          },
+        ),
+      ),
     );
-
-    if (picked != null && mounted) {
-      await AgeProgressService.saveBirthday(picked);
-      _updateAllProgress();
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: Stack(
-        children: [
-          // Background gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                  Theme.of(context).colorScheme.secondary.withOpacity(0.1),
-                ],
-              ),
-            ),
-          ),
-          SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // Custom App Bar
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Progress\nTracker',
-                          style: GoogleFonts.poppins(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            height: 1.2,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            IconButton(
-                              onPressed: _showBirthdayDialog,
-                              icon: const Icon(Icons.cake_rounded),
-                              tooltip: 'Change Birthday',
-                            ),
-                            IconButton(
-                              onPressed: _updateProgress,
-                              icon: const Icon(Icons.refresh_rounded),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Progress Circles
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Ethiopian Year Progress
-                        _buildProgressCircle(
-                          'Ethiopian Year',
-                          _yearProgress,
-                          Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(height: 24),
-                        // Age Progress
-                        if (AgeProgressService.hasBirthday()) ...[
-                          _buildProgressCircle(
-                            'Age $_currentAge',
-                            _ageProgress,
-                            Theme.of(context).colorScheme.secondary,
-                            subtitle: _nextBirthday != null
-                                ? '${_daysUntilNextBirthday} days until ${_currentAge + 1}'
-                                : null,
-                          ),
-                        ],
-                        const SizedBox(height: 48),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-  Widget _buildProgressCircle(String title, double progress, Color color,
-      {String? subtitle}) {
-    return GlassmorphicContainer(
-      width: 250,
-      height: 250,
-      borderRadius: 125,
-      blur: 20,
-      alignment: Alignment.center,
-      border: 2,
-      linearGradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          const Color(0xFFffffff).withOpacity(0.1),
-          const Color(0xFFFFFFFF).withOpacity(0.05),
-        ],
-      ),
-      borderGradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          color.withOpacity(0.5),
-          color.withOpacity(0.5),
-        ],
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[800],
-              ),
-            ),
-            Text(
-              '${progress.toStringAsFixed(1)}%',
-              style: GoogleFonts.poppins(
-                fontSize: 48,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ).animate().fadeIn(duration: 600.ms).scale(delay: 200.ms),
-            if (subtitle != null)
-              Text(
-                subtitle,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Colors.grey[600],
+    if (!_isInitialized) {
+      return Scaffold(
+        backgroundColor: isDark ? Colors.black : Colors.white,
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              // App Bar
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.eco_outlined,
+                          color: isDark ? Colors.white : Colors.black,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Track',
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontSize: 18,
+                                    letterSpacing: -0.5,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.person_outline,
+                            color: isDark ? Colors.white : Colors.black,
+                            size: 20,
+                          ),
+                          onPressed: _showBirthdayDialog,
+                          padding: const EdgeInsets.all(8),
+                          constraints: const BoxConstraints(),
+                        ),
+                        const SizedBox(width: 16),
+                        IconButton(
+                          icon: Icon(
+                            isDark ? Icons.light_mode : Icons.dark_mode,
+                            color: isDark ? Colors.white : Colors.black,
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            // Toggle theme
+                          },
+                          padding: const EdgeInsets.all(8),
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
               ),
-          ],
+
+              const SizedBox(height: 6),
+
+              // Ethiopian Year Progress
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: DotMatrix(
+                  progress: _yearProgress,
+                  title: 'Ethiopian Year',
+                  rightText: '${_yearProgress.toStringAsFixed(1)}%',
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Age Progress
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: DotMatrix(
+                  progress: _ageProgress,
+                  title: '${_ageProgress.toStringAsFixed(1)}%',
+                  subtitle: _daysUntilNextBirthday > 0
+                      ? '$_daysUntilNextBirthday days until ${_currentAge + 1}'
+                      : null,
+                  rightText: 'Age $_currentAge',
+                ),
+              ),
+
+              SizedBox(
+                  height: MediaQuery.of(context).size.height *
+                      0.2), // Dynamic bottom spacing
+            ],
+          ),
         ),
       ),
-    ).animate().fadeIn(duration: 800.ms).scale(delay: 300.ms);
+    );
   }
 }
