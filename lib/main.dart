@@ -27,36 +27,30 @@ void main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
 
+    // Set error handling for the entire app
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      debugPrint('Flutter Error: ${details.toString()}');
+    };
+
+    // Pre-cache Google Fonts first to prevent black screen
+    await GoogleFonts.pendingFonts([
+      GoogleFonts.inter(),
+    ]);
+
     // Initialize WorkManager first
-    try {
-      await Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
-    } catch (e) {
-      debugPrint('Workmanager initialization error: $e');
-    }
+    await Workmanager().initialize(
+      callbackDispatcher,
+      isInDebugMode: false,
+    );
 
-    // Then initialize services that depend on WorkManager
-    try {
-      await YearProgressService.initialize();
-    } catch (e) {
-      debugPrint('YearProgress initialization error: $e');
-    }
-
-    try {
-      await AgeProgressService.initialize();
-    } catch (e) {
-      debugPrint('AgeProgress initialization error: $e');
-    }
-
-    try {
-      await YearProgressService.requestNotificationPermissions();
-    } catch (e) {
-      debugPrint('Notification permission error: $e');
-    }
+    // Initialize services sequentially to prevent race conditions
+    await YearProgressService.initialize();
+    await AgeProgressService.initialize();
 
     runApp(const MyApp());
   } catch (e, stack) {
     debugPrint('Critical error during app startup: $e\n$stack');
-    // Ensure the app runs even if there are initialization errors
     runApp(const MyApp());
   }
 }
@@ -66,75 +60,103 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Track',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.light(
-          primary: Colors.black,
-          onPrimary: Colors.white,
-          secondary: Colors.grey[800]!,
-          onSecondary: Colors.white,
-          surface: Colors.white,
-          onSurface: Colors.black,
-          background: Colors.white,
-          onBackground: Colors.black,
-        ),
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: Colors.white,
-        textTheme: GoogleFonts.interTextTheme().copyWith(
-          titleLarge: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
-          bodyLarge: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
-          ),
-          bodyMedium: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-            color: Colors.black54,
-          ),
-        ),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.dark(
-          primary: Colors.white,
-          onPrimary: Colors.black,
-          secondary: Colors.grey[300]!,
-          onSecondary: Colors.black,
-          surface: Colors.black,
-          onSurface: Colors.white,
-          background: Colors.black,
-          onBackground: Colors.white,
-        ),
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: Colors.black,
-        textTheme: GoogleFonts.interTextTheme().copyWith(
-          titleLarge: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-          bodyLarge: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-          bodyMedium: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-            color: Colors.white70,
-          ),
-        ),
-        useMaterial3: true,
-      ),
-      home: const ThemeProvider(
-        child: MyHomePage(),
+    return ThemeProvider(
+      child: Builder(
+        builder: (context) {
+          final themeProvider = ThemeProvider.of(context);
+          return MaterialApp(
+            title: 'Track',
+            debugShowCheckedModeBanner: false,
+            themeMode: themeProvider._themeMode,
+            theme: ThemeData(
+              colorScheme: ColorScheme.light(
+                primary: Colors.black,
+                onPrimary: Colors.white,
+                secondary: Colors.grey[800]!,
+                onSecondary: Colors.white,
+                surface: Colors.white,
+                onSurface: Colors.black,
+                background: Colors.white,
+                onBackground: Colors.black,
+              ),
+              brightness: Brightness.light,
+              scaffoldBackgroundColor: Colors.white,
+              textTheme: GoogleFonts.interTextTheme().copyWith(
+                titleLarge: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+                bodyLarge: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+                bodyMedium: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.black54,
+                ),
+              ),
+              useMaterial3: true,
+            ),
+            darkTheme: ThemeData(
+              colorScheme: ColorScheme.dark(
+                primary: Colors.white,
+                onPrimary: Colors.black,
+                secondary: Colors.grey[300]!,
+                onSecondary: Colors.black,
+                surface: Colors.black,
+                onSurface: Colors.white,
+                background: Colors.black,
+                onBackground: Colors.white,
+              ),
+              brightness: Brightness.dark,
+              scaffoldBackgroundColor: Colors.black,
+              textTheme: GoogleFonts.interTextTheme().copyWith(
+                titleLarge: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+                bodyLarge: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+                bodyMedium: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Colors.white70,
+                ),
+              ),
+              useMaterial3: true,
+            ),
+            builder: (context, child) {
+              ErrorWidget.builder = (FlutterErrorDetails details) {
+                return Material(
+                  child: Container(
+                    color: Colors.white,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline,
+                            color: Colors.red, size: 40),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Something went wrong',
+                          style: TextStyle(color: Colors.grey[800]),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              };
+              return child!;
+            },
+            home: const MyHomePage(),
+          );
+        },
       ),
     );
   }
@@ -174,7 +196,7 @@ class ThemeProvider extends StatefulWidget {
 }
 
 class _ThemeProviderState extends State<ThemeProvider> {
-  ThemeMode _themeMode = ThemeMode.light;
+  ThemeMode _themeMode = ThemeMode.system;
 
   void toggleTheme() {
     setState(() {
@@ -187,46 +209,7 @@ class _ThemeProviderState extends State<ThemeProvider> {
   Widget build(BuildContext context) {
     return _InheritedThemeProvider(
       data: this,
-      child: Builder(
-        builder: (context) {
-          return Theme(
-            data: _themeMode == ThemeMode.dark
-                ? Theme.of(context).copyWith(
-                    colorScheme: ColorScheme.dark(
-                      primary: Colors.white,
-                      onPrimary: Colors.black,
-                      secondary: Colors.grey[300]!,
-                      onSecondary: Colors.black,
-                      surface: Colors.black,
-                      onSurface: Colors.white,
-                      background: Colors.black,
-                      onBackground: Colors.white,
-                    ),
-                    brightness: Brightness.dark,
-                    scaffoldBackgroundColor: Colors.black,
-                    textTheme: GoogleFonts.interTextTheme().copyWith(
-                      titleLarge: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                      bodyLarge: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                      bodyMedium: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  )
-                : Theme.of(context),
-            child: widget.child,
-          );
-        },
-      ),
+      child: widget.child,
     );
   }
 }
@@ -243,24 +226,55 @@ class _MyHomePageState extends State<MyHomePage> {
   double _ageProgress = 0.0;
   int _currentAge = 0;
   int _daysUntilNextBirthday = 0;
-  DateTime? _nextBirthday;
   Timer? _updateTimer;
-  bool _isInitialized = false;
+  bool _isInitialized = true; // Change to true by default
 
   @override
   void initState() {
     super.initState();
     _initializeApp();
-    // Set up timer to update progress every minute
-    _updateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
-      _updateAllProgress();
-    });
   }
 
   @override
   void dispose() {
     _updateTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _initializeApp() async {
+    try {
+      _updateAllProgress();
+
+      // Start periodic updates
+      _updateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+        _updateAllProgress();
+      });
+
+      // Check if we need to show birthday dialog
+      if (!AgeProgressService.hasBirthday()) {
+        // Show birthday input dialog after a short delay
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          _showBirthdayDialog();
+        }
+      }
+
+      // Set system UI style
+      if (mounted) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        SystemChrome.setSystemUIOverlayStyle(
+          SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness:
+                isDark ? Brightness.light : Brightness.dark,
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint('Error in _initializeApp: $e\n$stackTrace');
+      // Don't set error state, just update UI with available data
+      _updateAllProgress();
+    }
   }
 
   void _updateAllProgress() {
@@ -270,50 +284,18 @@ class _MyHomePageState extends State<MyHomePage> {
       final yearProgress = YearProgressService.calculateYearProgress();
       final ageProgress = AgeProgressService.calculateAgeProgress();
 
-      setState(() {
-        _yearProgress = yearProgress;
-        _ageProgress = ageProgress['progress'];
-        _currentAge = ageProgress['currentAge'];
-        _nextBirthday = ageProgress['nextBirthday'];
-        _daysUntilNextBirthday = ageProgress['daysUntilNextBirthday'];
-        _isInitialized = true;
-      });
-    } catch (e, stackTrace) {
-      debugPrint('Error updating progress: $e\n$stackTrace');
-      setState(
-          () => _isInitialized = true); // Still mark as initialized to show UI
-    }
-  }
-
-  Future<void> _initializeApp() async {
-    try {
-      // Only initialize services in main.dart, not here
-      debugPrint('Initializing app UI');
-
-      // Update progress immediately
-      _updateAllProgress();
-
-      // Check if we need to show birthday dialog
-      if (!AgeProgressService.hasBirthday()) {
-        // Show birthday input dialog after a short delay
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) _showBirthdayDialog();
+      if (mounted) {
+        setState(() {
+          _yearProgress = yearProgress;
+          _ageProgress = ageProgress['progress'];
+          _currentAge = ageProgress['currentAge'];
+          _daysUntilNextBirthday = ageProgress['daysUntilNextBirthday'];
         });
       }
-
-      SystemChrome.setSystemUIOverlayStyle(
-        const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-        ),
-      );
-    } catch (e, stackTrace) {
-      debugPrint('Error in _initializeApp: $e\n$stackTrace');
+    } catch (e) {
+      debugPrint('Error updating progress: $e');
+      // Don't show error state, just keep previous values
     }
-  }
-
-  void _updateProgress() {
-    _updateAllProgress();
   }
 
   Future<void> _showBirthdayDialog() async {
@@ -334,15 +316,6 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    if (!_isInitialized) {
-      return Scaffold(
-        backgroundColor: isDark ? Colors.black : Colors.white,
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
 
     return Scaffold(
       body: SafeArea(

@@ -5,45 +5,72 @@ import 'package:workmanager/workmanager.dart';
 
 class YearProgressService {
   static Future<void> initialize() async {
-    await AwesomeNotifications().initialize(
-      null,
-      [
-        NotificationChannel(
-          channelKey: 'progress_channel',
-          channelName: 'Progress Notifications',
-          channelDescription: 'Notifications about year and birthday progress',
-          defaultColor: const Color(0xFF6C63FF),
-          ledColor: const Color(0xFF6C63FF),
-          importance: NotificationImportance.High,
-        ),
-      ],
-    );
+    try {
+      await AwesomeNotifications().initialize(
+        null,
+        [
+          NotificationChannel(
+            channelKey: 'progress_channel',
+            channelName: 'Progress Notifications',
+            channelDescription:
+                'Notifications about year and birthday progress',
+            defaultColor: const Color(0xFF6C63FF),
+            ledColor: const Color(0xFF6C63FF),
+            importance: NotificationImportance.High,
+            enableVibration: true,
+            enableLights: true,
+            defaultRingtoneType: DefaultRingtoneType.Notification,
+            playSound: true,
+            defaultPrivacy: NotificationPrivacy.Public,
+          ),
+        ],
+      );
 
-    // Schedule daily check for progress updates
-    await Workmanager().registerPeriodicTask(
-      'ethiopianYearProgress',
-      'checkYearProgress',
-      frequency: const Duration(hours: 24), // Check once per day
-      constraints: Constraints(
-        networkType: NetworkType.not_required,
-        requiresBatteryNotLow: false,
-      ),
-    );
+      // Only register workmanager if notifications are allowed
+      final isAllowed = await AwesomeNotifications().isNotificationAllowed();
+      if (isAllowed) {
+        // Schedule daily check for progress updates
+        await Workmanager().registerPeriodicTask(
+          'ethiopianYearProgress',
+          'checkYearProgress',
+          frequency: const Duration(hours: 24),
+          initialDelay: const Duration(minutes: 1),
+          constraints: Constraints(
+            networkType: NetworkType.not_required,
+            requiresBatteryNotLow: false,
+            requiresCharging: false,
+            requiresDeviceIdle: false,
+            requiresStorageNotLow: false,
+          ),
+          existingWorkPolicy: ExistingWorkPolicy.replace,
+        );
+
+        // Show initial notification
+        await checkAndNotify();
+      }
+    } catch (e) {
+      debugPrint('Error initializing notifications: $e');
+      // Continue even if notifications fail
+    }
   }
 
   static Future<void> checkAndNotify() async {
-    final progress = calculateYearProgress();
-    final ethiopianDate = ETDateTime.now();
+    try {
+      final progress = calculateYearProgress();
+      final ethiopianDate = ETDateTime.now();
 
-    final isSpecialOccasion = progress >= 99.5 || // Last day
-        ethiopianDate.month == 13 || // Pagume
-        (progress >= 74.5 && progress <= 75.5) || // Third quarter
-        (progress >= 49.5 && progress <= 50.5) || // Half year
-        (progress >= 24.5 && progress <= 25.5) || // First quarter
-        progress <= 1; // New year
+      final isSpecialOccasion = progress >= 99.5 || // Last day
+          ethiopianDate.month == 13 || // Pagume
+          (progress >= 74.5 && progress <= 75.5) || // Third quarter
+          (progress >= 49.5 && progress <= 50.5) || // Half year
+          (progress >= 24.5 && progress <= 25.5) || // First quarter
+          progress <= 1; // New year
 
-    // Always show daily progress, with special messages on milestones
-    await showYearProgressNotification(isSpecialOccasion: isSpecialOccasion);
+      // Show daily progress notification
+      await showYearProgressNotification(isSpecialOccasion: isSpecialOccasion);
+    } catch (e) {
+      debugPrint('Error checking and notifying progress: $e');
+    }
   }
 
   static double calculateYearProgress() {
@@ -96,7 +123,6 @@ class YearProgressService {
 
   static Future<void> showYearProgressNotification(
       {bool isSpecialOccasion = false}) async {
-    final progress = calculateYearProgress();
     final ethiopianDate = ETDateTime.now();
     final formattedDate = ETDateFormat('MMMM d, yyyy').format(ethiopianDate);
 
@@ -116,6 +142,24 @@ class YearProgressService {
   }
 
   static Future<void> requestNotificationPermissions() async {
-    await AwesomeNotifications().requestPermissionToSendNotifications();
+    final isAllowed = await AwesomeNotifications().isNotificationAllowed();
+    if (!isAllowed) {
+      final userResponse =
+          await AwesomeNotifications().requestPermissionToSendNotifications(
+        permissions: [
+          NotificationPermission.Alert,
+          NotificationPermission.Sound,
+          NotificationPermission.Badge,
+          NotificationPermission.Vibration,
+          NotificationPermission.Light,
+        ],
+      );
+      debugPrint('Notification permission response: $userResponse');
+
+      // If permissions granted, initialize notifications
+      if (userResponse) {
+        await initialize();
+      }
+    }
   }
 }
