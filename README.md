@@ -2,6 +2,8 @@
 
 A Flutter application that tracks both Ethiopian calendar year progress and personal age progress, providing elegant visualizations and timely notifications.
 
+![image](https://github.com/user-attachments/assets/b117a8dd-d4e6-43d8-96cf-1d8c1c77d5c1)
+
 ## Features
 
 - 🗓️ **Ethiopian Year Progress**
